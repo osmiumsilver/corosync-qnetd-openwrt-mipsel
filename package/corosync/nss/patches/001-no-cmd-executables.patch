@@ -1,0 +1,10 @@
+--- a/nss/cmd/manifest.mn
++++ b/nss/cmd/manifest.mn
+@@ -111,3 +111,7 @@
+ DONT_BULD = jar \
+  perror \
+ $(NULL)
++
++# Cross-compile: build only the tools we need
++SOFTOKEN_SRCDIRS =
++NSS_SRCDIRS = lib certutil shlibsign pk12util
