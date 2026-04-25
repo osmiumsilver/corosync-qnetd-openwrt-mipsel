@@ -21,7 +21,13 @@ endef
 define Build/Configure
 	(cd $(PKG_BUILD_DIR)/nspr; \
 	 $(CONFIGURE_VARS) \
-	 ./configure $(CONFIGURE_ARGS))
+	 ./configure $(CONFIGURE_ARGS) \
+		--enable-pthreads \
+		--with-pthreads \
+		--target=mipsel-linux \
+		--enable-optimize \
+		--disable-debug \
+		--enable-strip)
 endef
 
 define Build/Compile

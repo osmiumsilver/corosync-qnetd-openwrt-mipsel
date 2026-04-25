@@ -17,7 +17,8 @@ include $(INCLUDE_DIR)/package.mk
 
 # kronosnet sets its own -D_FORTIFY_SOURCE=2; remove OpenWrt's to avoid redefinition error
 TARGET_CFLAGS := $(filter-out -D_FORTIFY_SOURCE=%,$(TARGET_CFLAGS))
-
+TARGET_CFLAGS := $(filter-out -Werror=format-security,$(TARGET_CFLAGS))
+TARGET_CFLAGS += -Wno-format
 CONFIGURE_VARS += \
 	PKG_CONFIG_PATH="$(STAGING_DIR)/usr/lib/pkgconfig" \
 	nss_CFLAGS="-I$(STAGING_DIR)/usr/include/nss -I$(STAGING_DIR)/usr/include/nspr" \

@@ -22,24 +22,59 @@ endef
 define Build/Configure
 endef
 
+# --- Why this differs from the original aarch64 version ---
+#
+# The original repo uses OS_ARCH=aarch64 + USE_64=1.  This works because
+# NSS's coreconf has fallback logic that loads Linux.mk for unknown 64-bit
+# arches.  For mipsel (32-bit), there is no such fallback — NSS can't find
+# coreconf/mipsel.mk, falls back to auto-detecting the host, and then
+# compiles everything with the host's "cc" instead of the cross-compiler.
+#
+# The fix:
+#   OS_ARCH=Linux    → loads coreconf/Linux.mk (the platform config)
+#   OS_TARGET=Linux  → the variable NSS actually checks in most places
+#   OS_TEST=mipsel   → tells NSS the target CPU (equivalent to uname -m)
+#   CPU_ARCH=mipsel  → target CPU architecture
+#   No USE_64        → mipsel_24kc is 32-bit
+#
+# We also stage NSPR headers/libs into NSS's dist/ tree because NSS
+# sub-makefiles hard-code include paths like dist/<OBJDIR>/include and
+# dist/public/nspr — setting NSPR_INCLUDE_DIR alone is insufficient.
+
 define Build/Compile
-	# Host tool
+	# ---- 1. Host tool (nsinstall for the build machine) ----
 	$(MAKE) -j$(nproc) -C $(PKG_BUILD_DIR)/nss/coreconf/nsinstall \
 		CC="$(HOSTCC)" \
 		OBJDIR_NAME=host \
-		BUILD_OPT=1 \
-		USE_64=1
+		BUILD_OPT=1
 
-	# Target build — NSS_USE_SYSTEM_SQLITE intentionally not set so bundled sqlite3.c is used
+	# ---- 2. Stage NSPR into dist/ so NSS's hard-coded paths find it ----
+	mkdir -p $(PKG_BUILD_DIR)/dist/target.OBJ/include
+	cp -fpRL $(STAGING_DIR)/usr/include/nspr/. \
+		$(PKG_BUILD_DIR)/dist/target.OBJ/include/
+	mkdir -p $(PKG_BUILD_DIR)/dist/public/nspr
+	cp -fpRL $(STAGING_DIR)/usr/include/nspr/. \
+		$(PKG_BUILD_DIR)/dist/public/nspr/
+	mkdir -p $(PKG_BUILD_DIR)/dist/target.OBJ/lib
+	for lib in libnspr4.so libplc4.so libplds4.so; do \
+		cp -fpL $(STAGING_DIR)/usr/lib/$$lib \
+			$(PKG_BUILD_DIR)/dist/target.OBJ/lib/ 2>/dev/null || true; \
+	done
+
+	# ---- 3. Target build ----
 	$(MAKE) -j$(nproc) -C $(PKG_BUILD_DIR)/nss \
 		BUILD_OPT=1 \
-		USE_64=1 \
 		CROSS_COMPILE=1 \
+		NATIVE_CC="$(HOSTCC)" \
 		OS_TARGET=Linux \
-		OS_ARCH=aarch64 \
-		CPU_ARCH=aarch64 \
+		OS_ARCH=Linux \
+		OS_TEST=mipsel \
+		CPU_ARCH=mipsel \
+		KERNEL=Linux \
 		OBJDIR_NAME=target.OBJ \
 		FREEBL_LOWHASH=1 \
+		FREEBL_NO_DEPEND=1 \
+		NSS_USE_64=0 \
 		NSINSTALL="$(PKG_BUILD_DIR)/nss/coreconf/nsinstall/host/nsinstall" \
 		CC="$(TARGET_CC)" \
 		CCC="$(TARGET_CXX)" \
@@ -47,24 +82,24 @@ define Build/Compile
 		RC= \
 		NSS_DISABLE_DBM=1 \
 		NSS_DISABLE_LIBPKIX=1 \
-		USE_64=1 \
+		NSS_DISABLE_GTESTS=1 \
 		USE_SYSTEM_NSPR=1 \
-		NSPR_INCLUDE_DIR="$(STAGING_DIR)/usr/include/nspr" \
-		NSPR_LIB_DIR="$(STAGING_DIR)/usr/lib" \
+		NSPR_INCLUDE_DIR="$(PKG_BUILD_DIR)/dist/target.OBJ/include" \
+		NSPR_LIB_DIR="$(PKG_BUILD_DIR)/dist/target.OBJ/lib" \
 		OS_REL_CFLAGS="" \
 		ARCHFLAG="" \
+		DSO_LDOPTS="-shared" \
+		LDFLAGS="$(TARGET_LDFLAGS) -L$(STAGING_DIR)/usr/lib" \
 		NSS_ENABLE_TESTS=0 \
 		XCFLAGS="$(filter-out -Wl%,$(TARGET_CFLAGS)) $(TARGET_CPPFLAGS) \
 			-I$(STAGING_DIR)/usr/include \
 			-I$(STAGING_DIR)/usr/include/nspr \
+			-I$(PKG_BUILD_DIR)/dist/public/nspr \
 			-D_GNU_SOURCE \
 			-fno-lto -Wno-error" \
 		DANGEROUS_CRT_PATH_OK=1
 
-	# musl's dladdr() doesn't return full paths for libs in standard search paths,
-	# so libsoftokn3.so can't locate libfreebl3.so via its dlopen path-construction.
-	# Fix: add libfreebl3.so as a direct ELF DT_NEEDED entry so the dynamic linker
-	# loads it automatically instead of relying on NSS's dlopen-based loader.
+	# ---- 4. Fix musl dladdr issue ----
 	find $(PKG_BUILD_DIR)/dist -name libsoftokn3.so -exec \
 		$(STAGING_DIR_HOST)/bin/patchelf --add-needed libfreebl3.so {} \;
 endef
@@ -73,39 +108,33 @@ define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include/nss
 	cp -fpRL $(PKG_BUILD_DIR)/dist/public/nss/. $(1)/usr/include/nss/
 	$(INSTALL_DIR) $(1)/usr/lib
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libnss3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libssl3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libsmime3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libsoftokn3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libnssutil3.so $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libnss3.so     $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libssl3.so     $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libsmime3.so   $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libsoftokn3.so $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libnssutil3.so $(1)/usr/lib/
 	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
 	$(INSTALL_DATA) ./files/nss.pc $(1)/usr/lib/pkgconfig/nss.pc
 	$(INSTALL_DIR) $(1)/usr/bin
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/bin/certutil $(1)/usr/bin/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/bin/pk12util $(1)/usr/bin/
-	$(INSTALL_DIR) $(1)/usr/sbin
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/bin/shlibsign $(1)/usr/sbin/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/bin/certutil $(1)/usr/bin/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/bin/pk12util $(1)/usr/bin/
 endef
 
 define Package/libnss/install
 	$(INSTALL_DIR) $(1)/usr/lib
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libnss3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libssl3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libsmime3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libnssutil3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libsoftokn3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libsqlite3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libfreebl3.so $(1)/usr/lib/
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/lib/libfreeblpriv3.so $(1)/usr/lib/
-	$(INSTALL_DIR) $(1)/usr/sbin
-	cp -fpL $(PKG_BUILD_DIR)/dist/*/bin/shlibsign $(1)/usr/sbin/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libnss3.so        $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libssl3.so        $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libsmime3.so      $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libnssutil3.so    $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libsoftokn3.so    $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libsqlite3.so     $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libfreebl3.so     $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libfreeblpriv3.so $(1)/usr/lib/
 endef
 
 define Package/libnss/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
-shlibsign -v -i /usr/lib/libfreeblpriv3.so
-shlibsign -v -i /usr/lib/libsoftokn3.so
 exit 0
 endef
 

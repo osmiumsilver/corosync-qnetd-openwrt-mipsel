@@ -11,8 +11,8 @@ cp -r /build/package/* ${SDK_DIR}/package/
 cd ${SDK_DIR}
 
 cat <<EOF > .config
-CONFIG_TARGET_armsr=y
-CONFIG_TARGET_armsr_armv8=y
+CONFIG_TARGET_ramips=y
+CONFIG_TARGET_ramips_mt7620=y
 
 CONFIG_PACKAGE_libqb=m
 CONFIG_PACKAGE_libknet=m
@@ -24,20 +24,30 @@ CONFIG_PACKAGE_corosync-nss-tools=m
 EOF
 
 make defconfig
+# 逐个编译，失败了记录但继续
+FAILED=""
+for pkg in libqb nspr nss libknet corosync-qnetd; do
+    echo "=== Building $pkg ==="
+    if make package/corosync/$pkg/compile V=s -j$(nproc); then
+        echo "=== $pkg OK ==="
+    else
+        echo "=== $pkg FAILED ==="
+        FAILED="$FAILED $pkg"
+    fi
+done
 
-make package/corosync/libqb/compile V=s -j$(nproc)
-make package/corosync/nspr/compile V=s -j$(nproc)
-make package/corosync/nss/compile V=s -j$(nproc)
+if [ -n "$FAILED" ]; then
+    echo "FAILED packages:$FAILED"
+    exit 1
+fi
 
-make package/corosync/libknet/compile V=s -j$(nproc)
-make package/corosync/corosync-qnetd/compile V=s -j$(nproc)
 
 rm -f ${OUTPUT_DIR}/*.ipk
 find bin/packages -name "*.ipk" -exec cp {} ${OUTPUT_DIR}/ \;
 
 # Repack ipks: change Architecture field to match the GL.iNet router's arch string.
 # The binaries are identical — this is purely a metadata fix so opkg accepts them.
-ROUTER_ARCH="aarch64_cortex-a53_neon-vfpv4"
+ROUTER_ARCH="mipsel_24kc"
 for ipk in ${OUTPUT_DIR}/*.ipk; do
     tmpdir=$(mktemp -d)
     (
