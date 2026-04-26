@@ -18,6 +18,7 @@ define Package/libnss-qnetd
   CATEGORY:=Libraries
   TITLE:=Mozilla NSS
   DEPENDS:=+nspr +zlib
+  PROVIDES:=libnss
 endef
 
 define Build/Configure
