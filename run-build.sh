@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-mkdir -p sdk-state/build_dir sdk-state/staging_dir sdk-state/dl output
+mkdir -p sdk-state/build_dir sdk-state/feeds sdk-state/dl output
 
-docker run --rm \
+docker run --rm --init \
   -v "$(pwd):/build" \
   -v "$(pwd)/sdk-state/build_dir:/opt/sdk/build_dir" \
-  -v "$(pwd)/sdk-state/staging_dir:/opt/sdk/staging_dir/target-mipsel_24kc_musl" \
   -v "$(pwd)/sdk-state/dl:/opt/sdk/dl" \
+  -v "$(pwd)/sdk-state/feeds:/opt/sdk/feeds" \
   openwrt-corosync bash /build/build.sh \
-  > output/build.log 2>&1
+  | tee output/build.log
