@@ -9,7 +9,7 @@ cp -r /build/package/* ${SDK_DIR}/package/
 
 cd ${SDK_DIR}
 
-sed -i 's|https://github.com/|https://git.yylx.win/github.com/|g' feeds.conf.default
+# sed -i 's|https://github.com/|https://git.yylx.win/github.com/|g' feeds.conf.default
 
 # 关键：同步 feeds。这会自动把官方的 libnss 和 nspr 的 Makefile 拿过来
 ./scripts/feeds update base packages

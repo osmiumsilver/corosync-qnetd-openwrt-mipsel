@@ -1,9 +1,5 @@
 FROM ubuntu:22.04
 
-
-RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list \
- && sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
-
 RUN apt update && apt install -y \
  build-essential clang flex bison g++ gawk gcc-multilib \
  gettext git libncurses-dev libssl-dev python3 python3-distutils unzip zlib1g-dev \
@@ -11,10 +7,10 @@ RUN apt update && apt install -y \
 
 WORKDIR /opt
 
-COPY immortalwrt-sdk-24.10.4-ramips-mt7620_gcc-13.3.0_musl.Linux-x86_64.tar.zst .
-RUN tar -xf immortalwrt-sdk-*.tar.zst \
- && rm immortalwrt-sdk-*.tar.zst \
- && mv immortalwrt-sdk-* sdk
+RUN wget https://downloads.openwrt.org/releases/25.12.2/targets/ramips/mt7620/openwrt-sdk-25.12.2-ramips-mt7620_gcc-14.3.0_musl.Linux-x86_64.tar.zst \
+ && tar -xf openwrt-sdk-*.tar.zst \
+ && rm openwrt-sdk-*.tar.zst \
+ && mv openwrt-sdk-* sdk
 
 WORKDIR /opt/sdk
 
