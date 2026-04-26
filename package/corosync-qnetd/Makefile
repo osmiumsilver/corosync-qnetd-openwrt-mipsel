@@ -38,7 +38,7 @@ define Package/corosync-qnetd
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Corosync QNetd
-  DEPENDS:=+libnss +nspr +nss-utils +openssl-util +bash +coreutils
+  DEPENDS:=+libnss +nspr +nss-utils +openssl-util +bash +coreutils-chown +coreutils-sha1sum +coreutils-stat +openssh-sftp-server +procps-ng
 endef
 
 define Package/corosync-qnetd/install
