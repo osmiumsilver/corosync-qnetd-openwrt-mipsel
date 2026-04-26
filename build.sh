@@ -9,7 +9,8 @@ cp -r /build/package/* ${SDK_DIR}/package/
 
 cd ${SDK_DIR}
 
-sed -i 's|https://github.com/|https://git.yylx.win/github.com/|g' feeds.conf.default
+# sed -i 's|https://git.openwrt.org/openwrt/openwrt.git|https://git.yylx.win/github.com/openwrt/openwrt.git|g' feeds.conf.default
+# sed -i 's|https://git.openwrt.org/feed/packages.git|https://git.yylx.win/github.com/openwrt/packages.git|g' feeds.conf.default
 
 # 关键：同步 feeds。这会自动把官方的 libnss 和 nspr 的 Makefile 拿过来
 ./scripts/feeds update base packages
@@ -26,26 +27,26 @@ make defconfig
 make package/nss-qnetd/compile V=s -j$(nproc)
 make package/corosync-qnetd/compile V=s -j$(nproc)
 
-rm -f ${OUTPUT_DIR}/*.ipk
-find bin/packages -name "*.ipk" -exec cp {} ${OUTPUT_DIR}/ \;
+rm -f ${OUTPUT_DIR}/*.apk
+find bin/packages -name "*.apk" -exec cp {} ${OUTPUT_DIR}/ \;
 
-# Repack ipks: change Architecture field to match the GL.iNet router's arch string.
+# Repack apks: change Architecture field to match the GL.iNet router's arch string.
 # The binaries are identical — this is purely a metadata fix so opkg accepts them.
-ROUTER_ARCH="mipsel_24kc"
-for ipk in ${OUTPUT_DIR}/*.ipk; do
-    tmpdir=$(mktemp -d)
-    (
-        cd "$tmpdir"
-        tar xzf "$ipk"
-        mkdir ctrl
-        tar xzf control.tar.gz -C ctrl
-        sed -i "s/^Architecture: .*/Architecture: ${ROUTER_ARCH}/" ctrl/control
-        (cd ctrl && tar czf ../control.tar.gz .)
-        rm "$ipk"
-        tar czf "$ipk" debian-binary control.tar.gz data.tar.gz
-    )
-    rm -rf "$tmpdir"
-done
+# ROUTER_ARCH="mipsel_24kc"
+# for apk in ${OUTPUT_DIR}/*.apk; do
+#     tmpdir=$(mktemp -d)
+#     (
+#         cd "$tmpdir"
+#         tar xzf "$apk"
+#         mkdir ctrl
+#         tar xzf control.tar.gz -C ctrl
+#         sed -i "s/^Architecture: .*/Architecture: ${ROUTER_ARCH}/" ctrl/control
+#         (cd ctrl && tar czf ../control.tar.gz .)
+#         rm "$apk"
+#         tar czf "$apk" debian-binary control.tar.gz data.tar.gz
+#     )
+#     rm -rf "$tmpdir"
+# done
 
 echo "Build complete:"
 ls -lh ${OUTPUT_DIR}
