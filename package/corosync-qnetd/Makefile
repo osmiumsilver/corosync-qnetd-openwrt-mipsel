@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=corosync-qdevice
 PKG_VERSION:=3.0.4
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=corosync-qdevice-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://github.com/corosync/corosync-qdevice/archive/refs/tags/v$(PKG_VERSION)/
@@ -48,6 +48,7 @@ define Package/corosync-qnetd/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/corosync-qnetd-certutil $(1)/usr/sbin/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/qnetd.init $(1)/etc/init.d/corosync-qnetd
+	$(SED) '1s|#!.*/bash|#!/bin/bash|' $(1)/usr/sbin/corosync-qnetd-certutil
 endef
 
 $(eval $(call BuildPackage,corosync-qnetd))
