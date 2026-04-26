@@ -11,7 +11,6 @@ RUN apt update && apt install -y \
 
 WORKDIR /opt
 
-# RUN wget https://mirrors.ustc.edu.cn/immortalwrt/releases/24.10.4/targets/ramips/mt7620/immortalwrt-sdk-24.10.4-ramips-mt7620_gcc-13.3.0_musl.Linux-x86_64.tar.zst \
 COPY immortalwrt-sdk-24.10.4-ramips-mt7620_gcc-13.3.0_musl.Linux-x86_64.tar.zst .
 RUN tar -xf immortalwrt-sdk-*.tar.zst \
  && rm immortalwrt-sdk-*.tar.zst \
