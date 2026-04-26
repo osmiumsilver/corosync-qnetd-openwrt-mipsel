@@ -38,51 +38,26 @@ define Package/corosync-qnetd
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Corosync QNetd
-  DEPENDS:=+libnss
-endef
-
-define Package/corosync-nss-tools
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Corosync NSS tools
-  DEPENDS:=+nss-utils +openssl-util
+  DEPENDS:=+libnss +nss-utils +openssl-util +bash
 endef
 
 define Package/corosync-qnetd/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/corosync-qnetd $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/corosync-qnetd-tool $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/corosync-qnetd-certutil $(1)/usr/sbin/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/qnetd.init $(1)/etc/init.d/corosync-qnetd
 endef
 
-define Package/corosync-nss-tools/install
-	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) ./files/certutil-wrapper.sh $(1)/usr/sbin/corosync-qnetd-certutil
-	$(INSTALL_BIN) ./files/qnetd-setup.sh $(1)/usr/sbin/corosync-qnetd-setup
-endef
 
-define Package/corosync-nss-tools/postinst
+define Package/corosync-qnetd/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
-
-/usr/sbin/corosync-qnetd-setup
-
-exit 0
-endef
-
-define Package/corosync-nss-tools/prerm
-#!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] && exit 0
-
-for name in $$(uci show firewall | grep "name='Allow-QNetd-Proxmox'" | cut -d. -f2 | cut -d= -f1); do
-    uci -q delete firewall.$$name
-done
-uci commit firewall
-/etc/init.d/firewall restart 2>/dev/null || true
-
+/usr/sbin/corosync-qnetd-certutil -i 2>/dev/null || true
+/etc/init.d/corosync-qnetd enable
+/etc/init.d/corosync-qnetd start
 exit 0
 endef
 
 $(eval $(call BuildPackage,corosync-qnetd))
-$(eval $(call BuildPackage,corosync-nss-tools))

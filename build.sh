@@ -5,7 +5,6 @@ SDK_DIR=/opt/sdk
 OUTPUT_DIR=/build/output
 
 mkdir -p ${OUTPUT_DIR}
-
 cp -r /build/package/* ${SDK_DIR}/package/
 
 cd ${SDK_DIR}
@@ -13,15 +12,28 @@ cd ${SDK_DIR}
 cat <<EOF > .config
 CONFIG_TARGET_ramips=y
 CONFIG_TARGET_ramips_mt7620=y
-
+CONFIG_PACKAGE_libnspr=m
+CONFIG_PACKAGE_libnss=m
 CONFIG_PACKAGE_corosync-qnetd=m
-CONFIG_PACKAGE_corosync-nss-tools=m
 EOF
 
 make defconfig
-# 逐个编译，失败了记录但继续
 
-make package/corosync/corosync-qnetd/compile V=s -j$(nproc)
+FAILED=""
+for pkg in nspr nss corosync-qnetd; do
+    echo "=== Building $pkg ==="
+    if make package/corosync/$pkg/compile V=s -j$(nproc); then
+        echo "=== $pkg OK ==="
+    else
+        echo "=== $pkg FAILED ==="
+        FAILED="$FAILED $pkg"
+    fi
+done
+
+if [ -n "$FAILED" ]; then
+    echo "FAILED packages:$FAILED"
+    exit 1
+fi
 
 rm -f ${OUTPUT_DIR}/*.ipk
 find bin/packages -name "*.ipk" -exec cp {} ${OUTPUT_DIR}/ \;
