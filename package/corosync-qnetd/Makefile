@@ -12,7 +12,7 @@ PKG_FIXUP:=autoreconf
 PKG_BUILD_PARALLEL:=1
 PKG_INSTALL:=1
 
-PKG_BUILD_DEPENDS:=libnss
+PKG_BUILD_DEPENDS:=nss-qnetd
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -38,7 +38,7 @@ define Package/corosync-qnetd
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Corosync QNetd
-  DEPENDS:=+libnss +nss-utils +openssl-util +bash
+  DEPENDS:=+libnss +nspr +nss-utils +openssl-util +bash
 endef
 
 define Package/corosync-qnetd/install
@@ -48,16 +48,6 @@ define Package/corosync-qnetd/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/corosync-qnetd-certutil $(1)/usr/sbin/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/qnetd.init $(1)/etc/init.d/corosync-qnetd
-endef
-
-
-define Package/corosync-qnetd/postinst
-#!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] && exit 0
-/usr/sbin/corosync-qnetd-certutil -i 2>/dev/null || true
-/etc/init.d/corosync-qnetd enable
-/etc/init.d/corosync-qnetd start
-exit 0
 endef
 
 $(eval $(call BuildPackage,corosync-qnetd))
