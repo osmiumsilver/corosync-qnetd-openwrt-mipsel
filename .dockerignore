@@ -1,0 +1,8 @@
+# 排除所有编译中间件和缓存目录
+sdk-state/
+output/
+bin/
+dl/
+build_dir/
+staging_dir/
+.git/
