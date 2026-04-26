@@ -1,28 +1,35 @@
-# Corosync QNetd for OpenWrt (ARM64)
+# Corosync QNetd for OpenWrt (mipsel_24kc)
 
-## Overview
+Cross-compiled `corosync-qnetd` package for OpenWrt, targeting mipsel_24kc/musl (ramips-mt7620).
 
-Native OpenWrt build of `corosync-qnetd` and all dependencies, targeting aarch64/musl (OpenWrt 23.05).
+Based on the original aarch64 build by [jrparks/corosync-qnetd-openwrt](https://github.com/jrparks/corosync-qnetd-openwrt). Adapted for mipsel 32-bit targets with a stripped-down NSS to keep compile times reasonable on more common hardware.
 
-- musl-native, no glibc
-- Automatic NSS certificate setup
-- Per-IP firewall rules for Proxmox nodes
-- Proxmox cluster arbitration ready
+---
+
+## What Changed from Upstream
+ 
+**OpenWrt 25.12 migration**
+- Package format changed from `.ipk` (opkg) to `.apk` (apk), build scripts updated accordingly
+- Added runtime dependencies that OpenWrt 25.12 doesn't bundles by default but necessary: `coreutils-chown`, `coreutils-stat`, `coreutils-sha1sum`, `procps-ng`, `openssh-sftp-server`, `bash`
+**Minimal NSS build (`nss-qnetd`)**
+- Full NSS takes too long to compile; `nss-qnetd` builds only the libraries needed by corosync-qnetd (`libnss3.so`, `libssl3.so`, `libsmime3.so`, `libnssutil3.so`, `libsoftokn3.so`, `libfreebl3.so`)
+- Disabled DBM (`NSS_DISABLE_DBM=1`) and LIBPKIX (`NSS_DISABLE_LIBPKIX=1`) to skip sqlite3 and PKIX dependencies
+- `nss-qnetd` declares `PROVIDES:=libnss` so the packaging system resolves `libnss3.so` correctly, while the runtime `DEPENDS:=+libnss` in corosync-qnetd pulls the official `libnss` from the feed on the router
+- Cross-compile flags adapted for mipsel 32-bit (`OS_ARCH=Linux`, `OS_TEST=mipsel`, `CPU_ARCH=mipsel`, no `USE_64`)
+**Removed packages**
+- `libknet`, `libqb`, `corosync-nss-tools` — not required for qnetd-only operation
+- `corosync-qnetd-setup` script removed; firewall rules are left to the user in order to keep "package only"
 
 ---
 
 ## Packages
 
 ```
-corosync-nss-tools_3.0.4-1_aarch64_generic.ipk
-corosync-qnetd_3.0.4-1_aarch64_generic.ipk
-libknet_1.28-1_aarch64_generic.ipk
-libnspr_4.35-1_aarch64_generic.ipk
-libnss_3.98-7_aarch64_generic.ipk
-libqb_2.0.8-1_aarch64_generic.ipk
+corosync-qnetd_3.0.4-r2.apk
+libnss-qnetd_3.112-r1.apk       (build-time only, installation not required)
 ```
 
-`corosync-nss-tools` provides the NSS certificate setup script and the `corosync-qnetd-certutil` wrapper used by Proxmox during `pvecm qdevice setup`.
+The router uses the official `libnss` from opkg/apk feeds at runtime. `libnss-qnetd` exists solely to provide headers and `.so` files during cross-compilation.
 
 ---
 
@@ -39,134 +46,91 @@ bash run-build.sh
 tail -f output/build.log
 ```
 
-Output `.ipk` files are written to `output/`.
+Output `.apk` files are written to `output/`.
 
 ---
 
 ## Install
 
 ```bash
-# Copy packages to router
-scp -O output/*.ipk router:/tmp/
+# Copy package to router
+scp -O output/corosync-qnetd*.apk root@<router>:/tmp/
 
+# Install
 ssh root@<router>
-
-# Install all packages
-opkg install --nodeps --force-reinstall \
-  /tmp/libnspr_*.ipk /tmp/libnss_*.ipk /tmp/libqb_*.ipk \
-  /tmp/libknet_*.ipk /tmp/corosync-qnetd_*.ipk \
-  /tmp/corosync-nss-tools_*.ipk
+apk add --allow-untrusted /tmp/corosync-qnetd-3.0.4-r1.apk
 ```
 
-`--nodeps` skips resolution for system libraries (`libc`, `zlib`) already present on the router. The packages are built as `aarch64_generic` and repacked at build time with the GL.iNet firmware arch string (`aarch64_cortex-a53_neon-vfpv4`) — the binaries are fully compatible.
-
-`--force-reinstall` ensures packages are installed even if a previous version is already present. The `corosync-nss-tools` postinst runs `corosync-qnetd-setup`, which generates NSS integrity check files (`.chk`) via `shlibsign`, initialises the NSS certificate database, and starts the service. The firewall step is skipped at install time — run it manually after (see Post-Install Setup below).
+All dependencies (`libnss`, `nspr`, `nss-utils`, `bash`, `coreutils-chown`, `coreutils-stat`, `coreutils-sha1sum`, `procps-ng`, `openssh-sftp-server`, `openssl-util`) are pulled automatically from the OpenWrt feed.
 
 ---
 
-## Post-Install Setup
-
-Run the setup script with your Proxmox node IPs to create per-IP firewall rules on TCP 5403:
-
+## Setup
+ 
 ```bash
-corosync-qnetd-setup 192.168.0.200 192.168.0.201
-```
-
-This creates a single UCI firewall rule (`Allow-QNetd-Proxmox`) with the IPs as `src_ip` on TCP 5403. Re-running the script with a new list replaces the existing rule.
-
----
-
-## Remove on the router
-
-```bash
-rm /tmp/*.ipk
-opkg remove corosync-nss-tools corosync-qnetd libknet libqb libnss libnspr
-```
-
-## Update
-
-```bash
-# Build new ipks
-bash run-build.sh
-
-# Copy to router
-scp output/*.ipk root@<router>:/tmp/
-
-ssh root@<router>
-
-# Stop the service
-/etc/init.d/corosync-qnetd stop
-
-# Reinstall libraries and daemon
-opkg install --nodeps --force-reinstall \
-  /tmp/libnspr_*.ipk /tmp/libnss_*.ipk /tmp/libqb_*.ipk \
-  /tmp/libknet_*.ipk /tmp/corosync-qnetd_*.ipk \
-  /tmp/corosync-nss-tools_*.ipk
-
-# Start the service
-/etc/init.d/corosync-qnetd enable
+# Initialize NSS certificate database
+corosync-qnetd-certutil -i
+ 
+# Start and enable the service
 /etc/init.d/corosync-qnetd start
+/etc/init.d/corosync-qnetd enable
 ```
 
-The NSS certificate database at `/etc/corosync/qnetd/nssdb` is preserved across updates — the setup script only initialises it if it doesn't already exist. Re-run `corosync-qnetd-setup` with your node IPs if firewall rules need to be reapplied.
+---
+ 
+## Proxmox Integration
+ 
+On one Proxmox node:
+ 
+```bash
+pvecm qdevice setup <router-ip>
+```
+ 
+Use `--force` if re-running after a previous attempt:
+ 
+```bash
+pvecm qdevice setup <router-ip> --force
+```
+ 
+Once complete, `pvecm status` should show `Qdevice` with 1 vote, giving a 2-node cluster a proper tiebreaker.
 
 ---
 
-## Usage
 
+# Usage
+ 
 ```bash
 # Start / stop / status
 /etc/init.d/corosync-qnetd start
 /etc/init.d/corosync-qnetd stop
 /etc/init.d/corosync-qnetd status
-
-# Check whats connected
-/usr/sbin/corosync-qnetd-tool -s
-
-# Run interactively (foreground, useful for debugging)
+ 
+# Check connected clients
+corosync-qnetd-tool -l
+ 
+# Run in foreground (debugging)
 corosync-qnetd -f
-
-# Check if the port is listening
+ 
+# Check if listening
 netstat -tlnp | grep 5403
 ```
 
 ---
 
-## Proxmox Integration
 
-Install `openssh-sftp-server` on the router first (required for `pvecm` to SCP files):
-
-```bash
-opkg install openssh-sftp-server
-```
-
-Then on one Proxmox node:
+## Uninstallation
 
 ```bash
-pvecm qdevice setup <router-ip>
+pvecm qdevice remove          # on Proxmox node first
+apk del corosync-qnetd        # on router
 ```
-
-Use `--force` if re-running after a previous attempt:
-
-```bash
-pvecm qdevice setup <router-ip> --force
-```
-
-`pvecm qdevice setup` SSHes into the router, initialises the NSS certificate database, signs the cluster's client certificate via `corosync-qnetd-certutil`, and configures all cluster nodes to connect to qnetd. Once complete, `pvecm status` should show `A,V,NMW` next to each node and `Qdevice` with 1 vote — giving a 2-node cluster a proper tiebreaker.
 
 ---
 
 ## Notes
 
-- Built for OpenWrt 23.05.3 armsr/armv8 (aarch64 musl)
+- Target: OpenWrt 25.12 ramips/mt7620 (mipsel_24kc, musl)
 - Uses Mozilla NSS for TLS — no OpenSSL dependency
 - `corosync-qnetd` source: [corosync/corosync-qdevice](https://github.com/corosync/corosync-qdevice)
 - `sdk-state/` is gitignored and holds cached build artifacts between runs
-
----
-
-## Future
-
-- LuCI UI
-- Cluster auto-registration
-- HA monitoring
+- Key generation on mipsel hardware is slow (~5-10 minutes) — be patient during `corosync-qnetd-certutil -i`
