@@ -45,7 +45,7 @@ define Package/corosync-nss-tools
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Corosync NSS tools
-  DEPENDS:=+libnss
+  DEPENDS:=+nss-utils +openssl-util
 endef
 
 define Package/corosync-qnetd/install
@@ -60,9 +60,6 @@ define Package/corosync-nss-tools/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) ./files/certutil-wrapper.sh $(1)/usr/sbin/corosync-qnetd-certutil
 	$(INSTALL_BIN) ./files/qnetd-setup.sh $(1)/usr/sbin/corosync-qnetd-setup
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(STAGING_DIR)/usr/bin/certutil $(1)/usr/bin/certutil
-	$(INSTALL_BIN) $(STAGING_DIR)/usr/bin/pk12util $(1)/usr/bin/pk12util
 endef
 
 define Package/corosync-nss-tools/postinst
