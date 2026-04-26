@@ -97,7 +97,7 @@ Once complete, `pvecm status` should show `Qdevice` with 1 vote, giving a 2-node
 ---
 
 
-# Usage
+## Usage
  
 ```bash
 # Start / stop / status
@@ -129,8 +129,7 @@ apk del corosync-qnetd        # on router
 
 ## Notes
 
-- Target: OpenWrt 25.12 ramips/mt7620 (mipsel_24kc, musl)
-- Uses Mozilla NSS for TLS — no OpenSSL dependency
+- **OpenWrt 25.12.2** ramips/mt7620 (mipsel_24kc, musl) tested, OpenWrt 24.10 and earlier are not supported. Build with your own SDK at your own risk.
 - `corosync-qnetd` source: [corosync/corosync-qdevice](https://github.com/corosync/corosync-qdevice)
 - `sdk-state/` is gitignored and holds cached build artifacts between runs
 - Key generation on mipsel hardware is slow (~5-10 minutes) — be patient during `corosync-qnetd-certutil -i`
