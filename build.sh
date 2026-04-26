@@ -16,8 +16,6 @@ CONFIG_TARGET_ramips_mt7620=y
 
 CONFIG_PACKAGE_libqb=m
 CONFIG_PACKAGE_libknet=m
-CONFIG_PACKAGE_libnspr=m
-CONFIG_PACKAGE_libnss=m
 
 CONFIG_PACKAGE_corosync-qnetd=m
 CONFIG_PACKAGE_corosync-nss-tools=m
@@ -26,7 +24,7 @@ EOF
 make defconfig
 # 逐个编译，失败了记录但继续
 FAILED=""
-for pkg in libqb nspr nss libknet corosync-qnetd; do
+for pkg in libqb libknet corosync-qnetd; do
     echo "=== Building $pkg ==="
     if make package/corosync/$pkg/compile V=s -j$(nproc); then
         echo "=== $pkg OK ==="
