@@ -1,6 +1,6 @@
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=nss
+PKG_NAME:=nss-qnetd
 PKG_VERSION:=3.98
 PKG_RELEASE:=8
 
@@ -8,15 +8,16 @@ PKG_SOURCE:=nss-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://archive.mozilla.org/pub/security/nss/releases/NSS_3_98_RTM/src/
 PKG_HASH:=skip
 
+PKG_BUILD_DIR:=$(BUILD_DIR)/nss-$(PKG_VERSION)
 PKG_BUILD_DEPENDS:=nspr
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/libnss
+define Package/libnss-qnetd
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=Mozilla NSS
-  DEPENDS:=+libnspr +zlib
+  DEPENDS:=+nspr +zlib
 endef
 
 define Build/Configure
@@ -42,6 +43,10 @@ endef
 # dist/public/nspr — setting NSPR_INCLUDE_DIR alone is insufficient.
 
 define Build/Compile
+	# manifest.mn 追加必须在编译之前，解压之后
+	echo "" >> $(PKG_BUILD_DIR)/nss/cmd/manifest.mn
+	echo "SOFTOKEN_SRCDIRS =" >> $(PKG_BUILD_DIR)/nss/cmd/manifest.mn
+	echo "NSS_SRCDIRS = lib" >> $(PKG_BUILD_DIR)/nss/cmd/manifest.mn
 	# ---- 1. Host tool (nsinstall for the build machine) ----
 	$(MAKE) -j$(nproc) -C $(PKG_BUILD_DIR)/nss/coreconf/nsinstall \
 		CC="$(HOSTCC)" \
@@ -98,10 +103,11 @@ define Build/Compile
 			-D_GNU_SOURCE \
 			-fno-lto -Wno-error" \
 		DANGEROUS_CRT_PATH_OK=1
-endef
 
-# Only install headers and libs into staging_dir for other packages to compile against.
-# No ipk is generated for the router — use official libnss from opkg instead.
+	# ---- 4. Fix musl dladdr issue ----
+	find $(PKG_BUILD_DIR)/dist -name libsoftokn3.so -exec \
+		$(STAGING_DIR_HOST)/bin/patchelf --add-needed libfreebl3.so {} \;
+endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include/nss
@@ -116,4 +122,22 @@ define Build/InstallDev
 	$(INSTALL_DATA) ./files/nss.pc $(1)/usr/lib/pkgconfig/nss.pc
 endef
 
-$(eval $(call BuildPackage,libnss))
+define Package/libnss-qnetd/install
+	$(INSTALL_DIR) $(1)/usr/lib
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libnss3.so        $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libssl3.so        $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libsmime3.so      $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libnssutil3.so    $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libsoftokn3.so    $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libsqlite3.so     $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libfreebl3.so     $(1)/usr/lib/
+	cp -fpL $(PKG_BUILD_DIR)/dist/target.OBJ/lib/libfreeblpriv3.so $(1)/usr/lib/
+endef
+
+define Package/libnss-qnetd/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+exit 0
+endef
+
+$(eval $(call BuildPackage,libnss-qnetd))

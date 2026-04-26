@@ -9,31 +9,22 @@ cp -r /build/package/* ${SDK_DIR}/package/
 
 cd ${SDK_DIR}
 
+sed -i 's|https://github.com/|https://git.yylx.win/github.com/|g' feeds.conf.default
+
+# 关键：同步 feeds。这会自动把官方的 libnss 和 nspr 的 Makefile 拿过来
+./scripts/feeds update base packages
+./scripts/feeds install nspr
+
 cat <<EOF > .config
 CONFIG_TARGET_ramips=y
 CONFIG_TARGET_ramips_mt7620=y
-CONFIG_PACKAGE_libnspr=m
-CONFIG_PACKAGE_libnss=m
+CONFIG_PACKAGE_libnss-qnetd=m
 CONFIG_PACKAGE_corosync-qnetd=m
 EOF
 
 make defconfig
-
-FAILED=""
-for pkg in nspr nss corosync-qnetd; do
-    echo "=== Building $pkg ==="
-    if make package/corosync/$pkg/compile V=s -j$(nproc); then
-        echo "=== $pkg OK ==="
-    else
-        echo "=== $pkg FAILED ==="
-        FAILED="$FAILED $pkg"
-    fi
-done
-
-if [ -n "$FAILED" ]; then
-    echo "FAILED packages:$FAILED"
-    exit 1
-fi
+make package/nss-qnetd/compile V=s -j$(nproc)
+make package/corosync-qnetd/compile V=s -j$(nproc)
 
 rm -f ${OUTPUT_DIR}/*.ipk
 find bin/packages -name "*.ipk" -exec cp {} ${OUTPUT_DIR}/ \;
