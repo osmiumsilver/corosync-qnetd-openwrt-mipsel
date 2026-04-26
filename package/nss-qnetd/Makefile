@@ -1,12 +1,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=nss-qnetd
-PKG_VERSION:=3.98
-PKG_RELEASE:=8
+PKG_VERSION:=3.112
+PKG_RELEASE:=1
 
 PKG_SOURCE:=nss-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://archive.mozilla.org/pub/security/nss/releases/NSS_3_98_RTM/src/
-PKG_HASH:=skip
+PKG_SOURCE_URL:= \
+   https://download.cdn.mozilla.net/pub/security/nss/releases/NSS_$(subst .,_,$(PKG_VERSION))_RTM/src \
+   https://archive.mozilla.org/pub/security/nss/releases/NSS_$(subst .,_,$(PKG_VERSION))_RTM/src
+PKG_HASH:=33ae72d43b275957252adc8639e84229d3ae692a57b6191b059d9456b8568a68
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/nss-$(PKG_VERSION)
 PKG_BUILD_DEPENDS:=nspr
@@ -17,7 +19,7 @@ define Package/libnss-qnetd
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=Mozilla NSS
-  DEPENDS:=+nspr +zlib
+  DEPENDS:=+nspr
   PROVIDES:=libnss
 endef
 
